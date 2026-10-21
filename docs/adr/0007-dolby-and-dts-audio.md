@@ -123,8 +123,8 @@ and makes these videos play now. libmpv stays the plan for Phase 2.
 - **Build:** `scripts/build-ffmpeg.sh` builds FFmpeg 9.0.2 from the checksummed release tarball
   with `--disable-everything --disable-autodetect`, enabling only the Matroska and MOV demuxers,
   the `ac3`, `eac3`, `truehd`, `mlp`, and `dca` decoders, the native AAC encoder, the MP4 muxer,
-  and the `file`, `pipe`, `http`, and `tcp` protocols. The script fails if the configuration is
-  GPL or non-free or lacks a needed component. The result is 3.7–3.8 MB per platform. CI builds
+  and the `pipe`, `http`, and `tcp` protocols (no file access). The script fails if the
+  configuration is GPL or non-free or lacks a needed component. The result is 3.7–3.8 MB per platform. CI builds
   it on each platform (Windows with the runner's MinGW) and bundles it with
   `--config src-tauri/tauri.sidecar.conf.json` as `torrentstream-ffmpeg`, next to the app's
   executable, with FFmpeg's license files. Releases publish the source tarball. Builds without

@@ -9,11 +9,13 @@
 #
 # Writes <output-dir>/torrentstream-ffmpeg-<triple>[.exe], the name Tauri expects for a sidecar
 # (bundle.externalBin; see src-tauri/tauri.sidecar.conf.json), with FFmpeg's license files.
-# `source` only downloads and verifies the source tarball, which releases publish for the LGPL. The build is LGPL-2.1-or-later: no --enable-gpl, no --enable-nonfree, and
-# nothing detected from the build machine (--disable-autodetect). It contains only what playback
-# needs: the Matroska and MP4 demuxers, the Dolby and DTS decoders, the AAC encoder, the MP4
-# muxer, and the loopback HTTP input. Supported targets: x86_64-unknown-linux-gnu (built on
-# Linux), x86_64-pc-windows-msvc (cross-compiled on Linux with mingw-w64, or built with MinGW on
+# `source` only downloads and verifies the source tarball, which releases publish for the LGPL.
+#
+# The build is LGPL-2.1-or-later: no --enable-gpl, no --enable-nonfree, and nothing detected from
+# the build machine (--disable-autodetect). It contains only what playback needs: the Matroska
+# and MP4 demuxers, the Dolby and DTS decoders, the AAC encoder, the MP4 muxer, and the loopback
+# HTTP input (no file access). Supported targets: x86_64-unknown-linux-gnu (built on Linux),
+# x86_64-pc-windows-msvc (cross-compiled on Linux with mingw-w64, or built with MinGW on
 # Windows), aarch64-apple-darwin and x86_64-apple-darwin (built on macOS).
 set -euo pipefail
 
@@ -103,7 +105,7 @@ cd "$src"
   --enable-swresample \
   --enable-avfilter \
   --enable-network \
-  --enable-protocol=file,pipe,http,tcp \
+  --enable-protocol=pipe,http,tcp \
   --enable-demuxer=matroska,mov \
   --enable-decoder=ac3,eac3,truehd,mlp,dca \
   --enable-encoder=aac \
