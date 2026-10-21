@@ -322,12 +322,12 @@ unqueued downloads (see
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first; all commits are
+Contributions are welcome. Please read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first; all commits are
 signed off under the [Developer Certificate of Origin](https://developercertificate.org), and the
-project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+project follows the [Contributor Covenant Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
 To report a security vulnerability, **do not open a public issue**; follow
-[SECURITY.md](SECURITY.md).
+[SECURITY.md](.github/SECURITY.md).
 
 ## License
 
