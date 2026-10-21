@@ -24,7 +24,7 @@
   import SettingsPage from './lib/components/settings/SettingsPage.svelte';
   import type { FileSummary } from './lib/bindings/FileSummary';
   import { fileName, isPlayable, playTarget, readTorrentFile } from './lib/files';
-  import { dismissVpnHint, followSeedingStarted, followVpnHint, showVpnHint } from './lib/vpnHint';
+  import { followSeedingStarted, followVpnHint, showVpnHint } from './lib/vpnHint';
   import { explorerTorrents, torrentKeys, type ExplorerTorrent } from './lib/explorer';
   import {
     addTorrentFile,
@@ -164,12 +164,15 @@
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let announcement = $state('');
   // The VPN note, once per run, when the first torrent starts seeding in Direct mode.
-  // It disappears as soon as it no longer applies (dismissed anywhere, or another mode chosen).
+  // It closes as soon as it no longer applies (dismissed anywhere, or another mode chosen).
   let vpnHintApplies = $state(false);
-  let seedingHintOpen = $state(false);
+  let seedingHint = $state(false);
   let seedingHintShown = false;
-  let seedingHintError = $state<string | null>(null);
-  const seedingHint = $derived(seedingHintOpen && vpnHintApplies);
+  $effect(() => {
+    if (!vpnHintApplies) {
+      seedingHint = false;
+    }
+  });
 
   let upNext = $state<{ item: QueueItem; secondsLeft: number } | null>(null);
   const countdown = new Countdown(
@@ -1339,7 +1342,7 @@
       // Used up only once it is actually shown.
       if (!seedingHintShown && vpnHintApplies) {
         seedingHintShown = true;
-        seedingHintOpen = true;
+        seedingHint = true;
       }
     });
     loadQueue()
@@ -1639,20 +1642,12 @@
       <div class="seeding-hint" role="status">
         <strong>Seeding started</strong>
         <VpnHint
-          onDismiss={() => {
-            seedingHintError = null;
-            dismissVpnHint()
-              .then(() => {
-                seedingHintOpen = false;
-              })
-              .catch((reason: unknown) => {
-                seedingHintError = `The setting could not be saved: ${errorMessage(reason)}`;
-              });
+          onDismissed={() => {
+            seedingHint = false;
           }}
           onClose={() => {
-            seedingHintOpen = false;
+            seedingHint = false;
           }}
-          error={seedingHintError}
         />
       </div>
     {/if}

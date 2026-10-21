@@ -2,28 +2,46 @@
 <script lang="ts">
   /*
    * The VPN recommendation for Direct mode: one sentence, a link to the blog post, and a button
-   * that hides it for good (see `src/lib/vpnHint.ts`). `onClose`, if given, adds a button that
-   * only hides it for now.
+   * that hides it for good (see `src/lib/vpnHint.ts`); it saves that itself and shows why if it
+   * could not. `onClose`, if given, adds a button that only hides it for now.
    */
-  import { VPN_HINT, openVpnPost } from '../vpnHint';
+  import { errorMessage } from '../ipc';
+  import { VPN_HINT, dismissVpnHint, openVpnPost } from '../vpnHint';
 
   interface Props {
-    /** Hides the note for good. */
-    onDismiss: () => void;
+    /** Called once the dismissal is saved. */
+    onDismissed?: () => void;
     /** Hides the note until it is shown again. */
     onClose?: () => void;
-    /** Why the last dismissal could not be saved, if it failed. */
-    error?: string | null;
   }
 
-  let { onDismiss, onClose, error = null }: Props = $props();
+  let { onDismissed, onClose }: Props = $props();
+
+  let saving = $state(false);
+  let error = $state<string | null>(null);
+
+  function dismiss(): void {
+    saving = true;
+    error = null;
+    dismissVpnHint()
+      .then(() => {
+        onDismissed?.();
+      })
+      .catch((reason: unknown) => {
+        error = `The setting could not be saved: ${errorMessage(reason)}`;
+      })
+      .finally(() => {
+        saving = false;
+      });
+  }
 </script>
 
 <div class="hint" role="note">
   <p>{VPN_HINT}</p>
   <div class="actions">
     <button type="button" class="link" onclick={openVpnPost}>Why use a VPN?</button>
-    <button type="button" class="quiet" onclick={onDismiss}>Don't show again</button>
+    <button type="button" class="quiet" disabled={saving} onclick={dismiss}>Don't show again</button
+    >
     {#if onClose}
       <button type="button" class="quiet" onclick={onClose}>Close</button>
     {/if}

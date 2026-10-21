@@ -98,8 +98,8 @@
   let checking = $state(false);
   let check = $state<PublicIp | null>(null);
   let checkMessage = $state<string | null>(null);
-  // Dismissed elsewhere (the status bar) since this page loaded its settings.
-  let hintDismissedElsewhere = $state(false);
+  // The saved dismissal: the page's own copy of the settings does not follow changes.
+  let hintDismissedSaved = $state(false);
 
   // WireGuard import: check first (a summary without keys), then save.
   let importText = $state('');
@@ -153,7 +153,7 @@
   onMount(() => {
     loadInterfaces();
     const stopHint = followVpnHint((network) => {
-      hintDismissedElsewhere = network.vpnHintDismissed;
+      hintDismissedSaved = network.vpnHintDismissed;
     });
     const stopNetwork = followNetwork((next) => {
       status = next;
@@ -350,13 +350,9 @@
     {/each}
   </fieldset>
 
-  {#if showVpnHint(n.mode, n.vpnHintDismissed || hintDismissedElsewhere)}
+  {#if showVpnHint(n.mode, n.vpnHintDismissed || hintDismissedSaved)}
     <div class="vpn-hint">
-      <VpnHint
-        onDismiss={() => {
-          update('network.vpnHintDismissed', true);
-        }}
-      />
+      <VpnHint />
     </div>
   {/if}
 

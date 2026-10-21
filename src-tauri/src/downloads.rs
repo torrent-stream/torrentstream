@@ -693,13 +693,6 @@ impl Runtime {
                 m.stats.uploaded_bytes,
                 now,
             );
-            // Once per playback end: changing the seeding settings later does not resend it.
-            if seeding && !run.seeding_announced {
-                run.seeding_announced = true;
-                if let Err(error) = app.emit(SEEDING_STARTED, ()) {
-                    tracing::warn!(%error, "could not send the seeding-started event");
-                }
-            }
             let upload_enabled = foreground || needed || seeding;
             if run.upload_enabled != Some(upload_enabled)
                 && engine.set_upload_enabled(id, upload_enabled).is_ok()
@@ -719,6 +712,15 @@ impl Runtime {
             };
             if pause != run.paused && engine.set_paused(id, pause).await.is_ok() {
                 run.paused = pause;
+            }
+            // Once uploading really runs, and once per playback end: changing the seeding
+            // settings later does not resend it.
+            if seeding && !run.seeding_announced && run.upload_enabled == Some(true) && !run.paused
+            {
+                run.seeding_announced = true;
+                if let Err(error) = app.emit(SEEDING_STARTED, ()) {
+                    tracing::warn!(%error, "could not send the seeding-started event");
+                }
             }
             if limit != run.limit {
                 let bps = limit.and_then(|l| NonZeroU32::new(u32::try_from(l).unwrap_or(u32::MAX)));

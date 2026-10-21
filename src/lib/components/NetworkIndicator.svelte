@@ -10,9 +10,10 @@
    * the VPN note (see `src/lib/vpnHint.ts`) until it is dismissed.
    */
   import { onMount } from 'svelte';
-  import { errorMessage, type NetworkStatus, type PublicIp } from '../ipc';
+  import type { NetworkSettings } from '../bindings/NetworkSettings';
+  import type { NetworkStatus, PublicIp } from '../ipc';
   import { describeNetwork, describePublicIp, followNetwork, followPublicIp } from '../network';
-  import { dismissVpnHint, followVpnHint, showVpnHint } from '../vpnHint';
+  import { followVpnHint, showVpnHint } from '../vpnHint';
   import VpnHint from './VpnHint.svelte';
 
   interface Props {
@@ -47,13 +48,13 @@
       // Not remembered; the choice still applies now.
     }
   }
-  // The VPN note's popover. Hidden until the settings are known.
+  // The VPN note's popover, from the saved settings (as everywhere the note is shown). Hidden
+  // until they are known.
   const hintId = $props.id();
-  let hintDismissed = $state(true);
+  let saved = $state<NetworkSettings | null>(null);
   let hintOpen = $state(false);
-  let hintError = $state<string | null>(null);
   let hintBox: HTMLElement | undefined = $state();
-  const hint = $derived(status !== null && showVpnHint(status.mode, hintDismissed));
+  const hint = $derived(saved !== null && showVpnHint(saved.mode, saved.vpnHintDismissed));
 
   // Closed whenever the note stops applying, so it never reopens by itself.
   $effect(() => {
@@ -64,19 +65,6 @@
 
   function closeHint(): void {
     hintOpen = false;
-    hintError = null;
-  }
-
-  function dismissHint(): void {
-    hintError = null;
-    dismissVpnHint()
-      .then(() => {
-        hintDismissed = true;
-        closeHint();
-      })
-      .catch((reason: unknown) => {
-        hintError = `The setting could not be saved: ${errorMessage(reason)}`;
-      });
   }
 
   // Refreshed when the tooltip is about to show, so the uptime is current.
@@ -106,7 +94,7 @@
       ip = next;
     });
     const stopHint = followVpnHint((network) => {
-      hintDismissed = network.vpnHintDismissed;
+      saved = network;
     });
     return () => {
       stopStatus();
@@ -153,7 +141,18 @@
 
 {#snippet vpn()}
   {#if hint}
-    <span class="vpn" bind:this={hintBox}>
+    <span
+      class="vpn"
+      role="presentation"
+      bind:this={hintBox}
+      onkeydown={(e: KeyboardEvent) => {
+        // On the button or inside the popover; it does not reach the page's own Escape.
+        if (e.key === 'Escape' && hintOpen) {
+          e.stopPropagation();
+          closeHint();
+        }
+      }}
+    >
       <button
         type="button"
         class="vpn-button"
@@ -168,18 +167,8 @@
         }}>VPN recommended</button
       >
       {#if hintOpen}
-        <div
-          id={hintId}
-          class="popover"
-          role="presentation"
-          onkeydown={(e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              closeHint();
-            }
-          }}
-        >
-          <VpnHint onDismiss={dismissHint} onClose={closeHint} error={hintError} />
+        <div id={hintId} class="popover">
+          <VpnHint onDismissed={closeHint} onClose={closeHint} />
         </div>
       {/if}
     </span>
