@@ -27,6 +27,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   playback-only LGPL FFmpeg converts the audio to AAC as the video plays, copying the video, and
   the player keeps the full seek bar and restarts the conversion on far seeks.
 
+### Changed
+
+- Releases can be signed for Windows through Microsoft's Artifact Signing as well as with an
+  exportable certificate, and every release now checks that its app, FFmpeg sidecar, and
+  installers carry the expected signatures, listing them in the job summary.
+- macOS builds without a Developer ID certificate are signed ad hoc, so Apple silicon Macs offer
+  to open them instead of calling the app damaged.
+
 ## [0.2.0] - 2026-10-20
 
 ### Changed

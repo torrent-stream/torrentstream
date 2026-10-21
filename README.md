@@ -219,17 +219,18 @@ the playback library is a user-only local SQLite database and is never sent anyw
 
 ## Get TorrentStream
 
-TorrentStream is an early preview; there are no signed releases yet. You can:
+TorrentStream is an early preview. You can:
 
-- **Download a test build.** Every push to `main` builds unsigned installers for Windows, macOS,
-  and Linux: open the latest [Build workflow run](https://github.com/torrent-stream/torrentstream/actions/workflows/build.yml)
-  and download the `installers-<platform>` artifact. Unsigned builds trigger SmartScreen on
-  Windows and Gatekeeper on macOS.
+- **Download a release** from the [Releases](https://github.com/torrent-stream/torrentstream/releases)
+  page, with SHA-256 checksums, an SBOM, and build provenance attestations; see
+  [docs/release.md](docs/release.md) for how to verify them. Releases are not code signed yet,
+  so the system asks you to confirm the first time: on Windows, choose **More info → Run anyway**
+  in the SmartScreen prompt; on macOS, open the app once, then choose **Open Anyway** in
+  **System Settings → Privacy & Security**.
+- **Download a test build.** Every push to `main` builds installers for Windows, macOS, and
+  Linux: open the latest [Build workflow run](https://github.com/torrent-stream/torrentstream/actions/workflows/build.yml)
+  and download the `installers-<platform>` artifact.
 - **Build from source** (below).
-
-Signed installers will be published on the [Releases](https://github.com/torrent-stream/torrentstream/releases)
-page with SHA-256 checksums, an SBOM, and build provenance attestations; see
-[docs/release.md](docs/release.md) for how to verify them.
 
 | Platform                         | Packages                 |
 | -------------------------------- | ------------------------ |

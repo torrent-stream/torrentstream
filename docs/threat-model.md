@@ -95,12 +95,12 @@ See [Network modes and kill switch](network.md) for the design.
 
 ### Supply chain
 
-| Threat                              | Control                                                                                                                                                                                 | Status                             |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Vulnerable or malicious dependency. | Lockfiles committed; `cargo deny` (advisories, licenses, bans, sources) and `npm audit` on every PR and daily; Dependabot with a 14-day cooldown; new dependencies justified in review. | ✅                                 |
-| Compromised GitHub Action.          | Actions pinned to full commit SHAs; least-privilege `permissions:`; `zizmor` audits workflows; secrets never exposed to fork PRs.                                                       | ✅                                 |
-| Tampered release artifacts.         | Built only in CI; macOS signed and notarized; Windows signed; SHA-256 checksums, CycloneDX SBOM, and build provenance attestations published.                                           | Workflow ✅, signing needs secrets |
-| Malicious update.                   | If auto-updates are added, Tauri's updater with mandatory signature verification only.                                                                                                  | Not planned yet                    |
+| Threat                              | Control                                                                                                                                                                                                                                                         | Status                            |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| Vulnerable or malicious dependency. | Lockfiles committed; `cargo deny` (advisories, licenses, bans, sources) and `npm audit` on every PR and daily; Dependabot with a 14-day cooldown; new dependencies justified in review.                                                                         | ✅                                |
+| Compromised GitHub Action.          | Actions pinned to full commit SHAs; least-privilege `permissions:`; `zizmor` audits workflows; secrets never exposed to fork PRs.                                                                                                                               | ✅                                |
+| Tampered release artifacts.         | Built only in CI; macOS signed and notarized; Windows signed (app, FFmpeg sidecar, installers); every signature checked after the build, failing the release if one is missing; SHA-256 checksums, CycloneDX SBOM, and build provenance attestations published. | Workflow ✅, certificates pending |
+| Malicious update.                   | If auto-updates are added, Tauri's updater with mandatory signature verification only.                                                                                                                                                                          | Not planned yet                   |
 
 ## Non-goals
 

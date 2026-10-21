@@ -77,15 +77,76 @@ jobs:
           fi
           bash scripts/build-ffmpeg.sh "$TARGET" src-tauri/binaries
 
+      # Windows signing, either through Microsoft's Artifact Signing (a cloud certificate; see
+      # docs/release.md) or with an exportable certificate. Both write tauri.signing.conf.json,
+      # which Tauri uses to sign the app, the FFmpeg sidecar, and the installers.
+      - name: Configure Artifact Signing
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: |
+          if (-not $env:AZURE_CLIENT_ID) { exit 0 }
+          if ($env:WINDOWS_CERTIFICATE) {
+            Write-Output "::error::Both AZURE_CLIENT_ID and WINDOWS_CERTIFICATE are set; keep one signing method."
+            exit 1
+          }
+          if (-not ($env:SIGNING_ENDPOINT -and $env:SIGNING_ACCOUNT -and $env:SIGNING_PROFILE)) {
+            Write-Output "::error::Set the ARTIFACT_SIGNING_ENDPOINT, ARTIFACT_SIGNING_ACCOUNT, and ARTIFACT_SIGNING_PROFILE variables."
+            exit 1
+          }
+          # Microsoft's signing client for signtool, pinned by version and checksum.
+          $version = "1.0.128"
+          $sha256 = "74BD7D27E6CE1051409C38D9B46BC8DF0400ECD643D51FFBF2AC00869061E40B"
+          $dir = Join-Path $env:RUNNER_TEMP "artifact-signing"
+          $package = Join-Path $env:RUNNER_TEMP "artifact-signing.zip"
+          Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.artifactsigning.client/$version/microsoft.artifactsigning.client.$version.nupkg" -OutFile $package
+          if ((Get-FileHash -Algorithm SHA256 $package).Hash -ne $sha256) {
+            Write-Output "::error::The Artifact Signing client does not match its pinned checksum."
+            exit 1
+          }
+          Expand-Archive -Path $package -DestinationPath $dir
+          $dlib = Join-Path $dir "bin/x64/Azure.CodeSigning.Dlib.dll"
+          $signer = Get-AuthenticodeSignature -LiteralPath $dlib
+          if ($signer.Status -ne "Valid" -or $signer.SignerCertificate.Subject -notmatch "O=Microsoft Corporation") {
+            Write-Output "::error::The Artifact Signing client is not signed by Microsoft."
+            exit 1
+          }
+          $metadata = Join-Path $dir "metadata.json"
+          @{
+            Endpoint = $env:SIGNING_ENDPOINT
+            CodeSigningAccountName = $env:SIGNING_ACCOUNT
+            CertificateProfileName = $env:SIGNING_PROFILE
+          } | ConvertTo-Json | Set-Content -Path $metadata
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object { [version]$_.Directory.Parent.Name } | Select-Object -Last 1
+          if (-not $signtool) {
+            Write-Output "::error::signtool.exe (Windows SDK) was not found."
+            exit 1
+          }
+          $config = @{ bundle = @{ windows = @{ signCommand = @{
+            cmd = $signtool.FullName
+            args = @("sign", "/v", "/fd", "SHA256", "/tr", "http://timestamp.acs.microsoft.com",
+              "/td", "SHA256", "/dlib", $dlib, "/dmdf", $metadata, "%1")
+          } } } } | ConvertTo-Json -Depth 6
+          Set-Content -Path src-tauri/tauri.signing.conf.json -Value $config
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNING=signed"
+
       - name: Import Windows signing certificate
         if: runner.os == 'Windows'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
         run: |
+          if ($env:AZURE_CLIENT_ID) { exit 0 }
           if (-not $env:WINDOWS_CERTIFICATE) {
-            Write-Output "::warning::WINDOWS_CERTIFICATE is not set; the Windows build will be unsigned."
+            Write-Output "::warning::No Windows signing is configured; the Windows build will be unsigned."
             exit 0
           }
           $pfx = Join-Path $env:RUNNER_TEMP "certificate.pfx"
@@ -99,9 +160,12 @@ jobs:
             timestampUrl = "http://timestamp.digicert.com"
           } } } | ConvertTo-Json -Depth 5
           Set-Content -Path src-tauri/tauri.signing.conf.json -Value $config
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNING=signed"
 
       # Tauri treats a defined-but-empty APPLE_CERTIFICATE as a signing request, so the
-      # variables are exported only when the secrets exist.
+      # variables are exported only when the secrets exist. Without them the app is signed ad
+      # hoc (identity "-"): Apple silicon refuses to open an app with no signature at all,
+      # calling it damaged, while an ad hoc signed one only asks the user to confirm.
       - name: Configure macOS signing
         if: runner.os == 'macOS'
         shell: bash
@@ -113,21 +177,35 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          names=(APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
+            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID)
           if [ -z "$APPLE_CERTIFICATE" ]; then
-            echo "::warning::APPLE_CERTIFICATE is not set; the macOS build will be unsigned and not notarized."
+            echo "::warning::APPLE_CERTIFICATE is not set; the macOS build will be signed ad hoc and not notarized."
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
             exit 0
           fi
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+          # Signing without notarization would still be blocked by Gatekeeper.
+          for name in "${names[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set; macOS signing needs all of ${names[*]}."
+              exit 1
+            fi
+          done
+          for name in "${names[@]}"; do
             delimiter="EOF_$(openssl rand -hex 16)"
             printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "${!name}" "$delimiter" >> "$GITHUB_ENV"
           done
+          echo "SIGNING=signed" >> "$GITHUB_ENV"
 
       - name: Build and upload installers
         id: tauri
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Read by the Artifact Signing client that signtool loads (when configured).
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: TorrentStream ${{ github.ref_name }}
@@ -138,6 +216,14 @@ jobs:
             --target ${{ matrix.target }}
             --config src-tauri/tauri.sidecar.conf.json
             ${{ runner.os == 'Windows' && hashFiles('src-tauri/tauri.signing.conf.json') != '' && '--config src-tauri/tauri.signing.conf.json' || '' }}
+
+      # Fails the release if signing was configured but a file is not signed, and lists every
+      # signature in the job summary.
+      - name: Check signatures
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash scripts/check-signatures.sh "$TARGET" "${SIGNING:-unsigned}"
 
       # TODO(phase 5): bundle an LGPL build of libmpv for each platform
       # (see docs/adr/0001-project-license.md).

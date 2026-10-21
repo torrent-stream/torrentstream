@@ -76,12 +76,21 @@ jobs:
           fi
           bash scripts/build-ffmpeg.sh "$TARGET" src-tauri/binaries
 
-      # Without a tag, tauri-action only builds; nothing is published.
+      # Without a tag, tauri-action only builds; nothing is published. macOS builds are signed
+      # ad hoc, so testers on Apple silicon can open them (see release.yml).
       - name: Build installers
         id: tauri
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
         with:
           args: --target ${{ matrix.target }} --config src-tauri/tauri.sidecar.conf.json
+
+      - name: Check signatures
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash scripts/check-signatures.sh "$TARGET" unsigned
 
       - name: Collect installers
         shell: bash
